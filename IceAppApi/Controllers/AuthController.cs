@@ -10,6 +10,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using System.Web.Helpers;
 
 namespace IceAppApi.Controllers
 {
@@ -32,10 +33,9 @@ namespace IceAppApi.Controllers
             }
             var dbUser = await _context.IceShopOwners
                 .Where(row => row.Email == user.Email)
-                .Where(row => row.Password == user.Password)
                 .FirstOrDefaultAsync();
-
-            if (dbUser == null)
+            var verified = Crypto.VerifyHashedPassword(dbUser.Password, user.Password);
+            if (verified == false)
             {
                 return Unauthorized();
             }
@@ -45,14 +45,15 @@ namespace IceAppApi.Controllers
                 var signinCredentials = new SigningCredentials(secretKey, SecurityAlgorithms.HmacSha256);
                 var claims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.Name, user.Email),
-                    new Claim(ClaimTypes.Role, "Manager")
+                    new Claim("Name", user.Email),
+                    new Claim("Role", "Manager"),
+                    new Claim("providerId", dbUser.Id.ToString())
                 };
                 var tokeOptions = new JwtSecurityToken(
-                    issuer: "https://localhost:44309",
-                    audience: "https://localhost:44309",
+                    issuer: "https://localhost:44385",
+                    audience: "https://localhost:44385",
                     claims: claims,
-                    expires: DateTime.Now.AddMinutes(5),
+                    expires: DateTime.Now.AddMinutes(60),
                     signingCredentials: signinCredentials
                 );
 

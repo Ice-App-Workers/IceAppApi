@@ -17,7 +17,6 @@ namespace IceAppApi.Models
         {
         }
 
-        public virtual DbSet<IceKind> IceKinds { get; set; }
         public virtual DbSet<IceShopOffer> IceShopOffers { get; set; }
         public virtual DbSet<IceShopOwner> IceShopOwners { get; set; }
         public virtual DbSet<IceTaste> IceTastes { get; set; }
@@ -27,7 +26,7 @@ namespace IceAppApi.Models
             if (!optionsBuilder.IsConfigured)
             {
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see http://go.microsoft.com/fwlink/?LinkId=723263.
-                optionsBuilder.UseSqlServer("Server=localhost\\SQLEXPRESS;Database=IceAppDb;Trusted_Connection=True;");
+                optionsBuilder.UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=IceAppDb;Trusted_Connection=True;MultipleActiveResultSets=true");
             }
         }
 
@@ -35,29 +34,12 @@ namespace IceAppApi.Models
         {
             modelBuilder.HasAnnotation("Relational:Collation", "Polish_CI_AS");
 
-            modelBuilder.Entity<IceKind>(entity =>
-            {
-                entity.ToTable("IceKind");
-
-                entity.Property(e => e.Id).HasDefaultValueSql("(newid())");
-
-                entity.Property(e => e.IceKind1)
-                    .IsRequired()
-                    .HasMaxLength(50)
-                    .HasColumnName("IceKind");
-            });
 
             modelBuilder.Entity<IceShopOffer>(entity =>
             {
                 entity.ToTable("IceShopOffer");
 
                 entity.Property(e => e.Id).ValueGeneratedNever();
-
-                entity.HasOne(d => d.IceKindNavigation)
-                    .WithMany(p => p.IceShopOffers)
-                    .HasForeignKey(d => d.IceKind)
-                    .OnDelete(DeleteBehavior.ClientSetNull)
-                    .HasConstraintName("FK_IceShopOffer_IceKind");
 
                 entity.HasOne(d => d.IceShopOwnerNavigation)
                     .WithMany(p => p.IceShopOffers)

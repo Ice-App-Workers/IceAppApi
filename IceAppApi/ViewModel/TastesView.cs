@@ -5,11 +5,9 @@ using System.Threading.Tasks;
 
 namespace IceAppApi.ViewModel
 {
-    public class OfferView
+    public class TastesView
     {
-        public Guid ProviderId { get; set; }
         public Guid IceTasteId { get; set; }
         public string IceTaste { get; set; }
-        public decimal KindPrice { get; set; }
     }
 }

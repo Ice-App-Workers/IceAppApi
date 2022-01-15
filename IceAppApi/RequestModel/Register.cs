@@ -9,8 +9,6 @@ namespace IceAppApi.RequestModel
     public class Register
     {
         [Required]
-        public string Login { get; set; }
-        [Required]
         public string Password { get; set; }
         [Required]
         public string Name { get; set; }

@@ -44,8 +44,8 @@ namespace IceAppApi
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
-                    ValidIssuer = "https://localhost:44309",
-                    ValidAudience = "https://localhost:44309",
+                    ValidIssuer = "https://localhost:44385",
+                    ValidAudience = "https://localhost:44385",
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("superSecretKey@345"))
                 };
             });

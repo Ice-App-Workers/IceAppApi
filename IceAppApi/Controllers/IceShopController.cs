@@ -3,6 +3,7 @@ using IceAppApi.Models;
 using IceAppApi.RequestModel;
 using IceAppApi.ViewModel;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
@@ -11,6 +12,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using System.Web.Helpers;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -34,8 +36,6 @@ namespace IceAppApi.Controllers
 
             Guid userId = Guid.NewGuid();
 
-            if (provider.IsProvider)
-            {
                 HttpClient client = new HttpClient();
 
                 var result = await client.GetStringAsync($"https://maps.googleapis.com/maps/api/geocode/json?address={provider.City}+{provider.Street}+{provider.Number}&key=AIzaSyDWuh1lZP1loT8uTBwG1pdzzQbf03dKj4c");
@@ -47,10 +47,8 @@ namespace IceAppApi.Controllers
                 IceShopOwner providerToAdd = new IceShopOwner
                 {
                     Id = Guid.NewGuid(),
-                    //Login = provider.Login,
-                    //Password = BCrypt.Net.BCrypt.HashPassword(provider.Password),
                     Email = provider.Email,
-                    Password = provider.Password,
+                    Password = Crypto.HashPassword(provider.Password),
                     Name = provider.Name,
                     Phone = provider.Phone,
                     City = provider.City,
@@ -63,13 +61,20 @@ namespace IceAppApi.Controllers
                     Lng = lng
                 };
                 _context.Add(providerToAdd);
-            }
+           
             await _context.SaveChangesAsync();
             return ServiceResponse<bool>.Ok(true, "User was added");
         }
+        [HttpPut("/AddTaste")]
+        public async Task<ServiceResponse<bool>> AddTaste(string tasteName)
+        {
+            var taste = new IceTaste { IceTaste1 = tasteName, Id = Guid.NewGuid() };
+            _context.IceTastes.Add(taste);
+            await _context.SaveChangesAsync();
+            return ServiceResponse<bool>.Ok(true,"Taste added");
+        }
         [HttpPut("/AddToOffer")]
-        [Authorize(Roles = "Manager")]
-        public async Task<ServiceResponse<bool>> AddToOffer(string tasteName, string kindName)
+        public async Task<ServiceResponse<bool>> AddToOffer(string providerId,string tasteName, decimal kindPrice)
         {
             var tasteId = await _context.IceTastes
                 .Where(row => row.IceTaste1 == tasteName)
@@ -77,26 +82,18 @@ namespace IceAppApi.Controllers
             if (tasteId == Guid.Empty)
                 return ServiceResponse<bool>.Error("Taste not exists");
 
-            var kindId = await _context.IceKinds
-                .Where(row => row.IceKind1 == kindName)
-                .Select(row => row.Id).FirstOrDefaultAsync();
-            if (kindId == Guid.Empty)
-                return ServiceResponse<bool>.Error("Kind not exists");
-
-            var provId = await GetProvider();
             _context.IceShopOffers.Add(new IceShopOffer
             {
                 Id = Guid.NewGuid(),
-                IceShopOwner = provId,
-                IceKind = kindId,
-                IceTaste = tasteId
+                IceShopOwner = Guid.Parse(providerId),
+                IceTaste = tasteId,
+                KindPrice = kindPrice, 
             });
             await _context.SaveChangesAsync();
             return ServiceResponse<bool>.Ok(true, "Ice type was added to offer");
         }
         [HttpPut("/RemoveFromOffer")]
-        [Authorize(Roles = "Manager")]
-        public async Task<ServiceResponse<bool>> RemoveFromOffer(string tasteName, string kindName)
+        public async Task<ServiceResponse<bool>> RemoveFromOffer(string providerId,string tasteName)
         {
             var tasteId = await _context.IceTastes
                 .Where(row => row.IceTaste1 == tasteName)
@@ -104,17 +101,8 @@ namespace IceAppApi.Controllers
             if (tasteId == Guid.Empty)
                 return ServiceResponse<bool>.Error("Taste not exists");
 
-            var kindId = await _context.IceKinds
-                .Where(row => row.IceKind1 == kindName)
-                .Select(row => row.Id).FirstOrDefaultAsync();
-            if (kindId == Guid.Empty)
-                return ServiceResponse<bool>.Error("Kind not exists");
-
-            var provId = await GetProvider();
-
             var offerToRemove =await _context.IceShopOffers
-                .Where(row => row.IceShopOwner == provId)
-                .Where(row => row.IceKind == kindId)
+                .Where(row => row.IceShopOwner == Guid.Parse(providerId))
                 .Where(row => row.IceTaste == tasteId)
                 .FirstOrDefaultAsync();
 
@@ -122,19 +110,28 @@ namespace IceAppApi.Controllers
             await _context.SaveChangesAsync();
             return ServiceResponse<bool>.Ok(true, "Ice type was removed from offer");
         }
+        [HttpPut("/GetTastes")]
+        public async Task<ServiceResponse<List<TastesView>>> GetTastes()
+        {
+            var result = await (_context.IceTastes.Select(row => new TastesView
+                                {
+                                    IceTaste = row.IceTaste1,
+                                    IceTasteId = row.Id,
+                                })).ToListAsync();
+
+            return ServiceResponse<List<TastesView>>.Ok(result, "Offer returned");
+        }
         [HttpPut("/GetOffer")]
         public async Task<ServiceResponse<List<OfferView>>> GetOffer(Guid providerId)
         {
             var result = await (from offer in _context.IceShopOffers.Where(row => row.IceShopOwner == providerId)
-                          join kind in _context.IceKinds on offer.IceKind equals kind.Id
                           join taste in _context.IceTastes on offer.IceTaste equals taste.Id
                           select new OfferView
                           {
                               ProviderId = providerId,
-                              IceKind = kind.IceKind1,
-                              IceKindId = kind.Id,
                               IceTaste = taste.IceTaste1,
-                              IceTasteId = taste.Id
+                              IceTasteId = taste.Id,
+                              KindPrice = offer.KindPrice,
                           }).ToListAsync();
 
             return ServiceResponse<List<OfferView>>.Ok(result, "Offer returned");
@@ -149,9 +146,29 @@ namespace IceAppApi.Controllers
                 Lng = row.Lng,
                 Name = row.Name,
                 ProviderId = row.Id,
-                ShopName = row.Name
+                ShopName = row.Name,
+                City = row.City,
+                Street = row.Street,
+                Number = row.Number
             })).ToListAsync();
             return ServiceResponse<List<IceShop>>.Ok(result, "IceCream shops returned");
+        }
+        [HttpPut("/GetShopsById")]
+        public async Task<ServiceResponse<List<IceShop>>> GetIceShopsById(Guid providerId)
+        {
+            var result = await (_context.IceShopOwners.Where(row => row.Id == providerId).Select(row => new IceShop
+            {
+                Description = row.Description,
+                Lat = row.Lat,
+                Lng = row.Lng,
+                Name = row.Name,
+                ProviderId = row.Id,
+                ShopName = row.Name,
+                City = row.City,
+                Street = row.Street,
+                Number = row.Number
+            })).ToListAsync();
+            return ServiceResponse<List<IceShop>>.Ok(result, "IceCream shop returned");
         }
 
         private async Task<Guid> GetProvider()
